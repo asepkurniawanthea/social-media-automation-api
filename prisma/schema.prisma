@@ -5,19 +5,104 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model Task {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  status      String   @default("TODO") // TODO, IN_PROGRESS, DONE
-  createdAt   DateTime @default(now())
+model Users {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      String   @default("viewer") // admin, editor, scheduler, viewer
+  active    String   @default("active")
+  createdAt DateTime @default(now())
+}
+
+model Sources {
+  id            Int      @id @default(autoincrement())
+  domain        String
+  name          String?
+  channel       String   @default("hardcode") // hardcode, 1001colors, ngabring
+  is_active     String  @default("active")
+  created_at    DateTime @default(now())
+
+  @@index([channel])
+
+  articles      Articles[]
+}
+
+model Articles {
+  id            Int      @id @default(autoincrement())
+  sources_id    Int
+  sources       Sources  @relation(fields: [sources_id], references: [id])
+
+  url           String   @unique
+  title         String
+  raw_content   String   @db.Text
+  author        String?
+  published_at  DateTime?
+  scraped_at    DateTime
+  status        String   @default("pending") // pending, processed, failed
+
+  @@index([sources_id])
+  @@index([status])
+
+  contents      Contents[]
+}
+
+model Contents {
+  id            Int      @id @default(autoincrement())
+  articles_id   Int
+  articles      Articles  @relation(fields: [articles_id], references: [id])
+
+  ai_model      String
+  caption       String   @unique
+  hashtag       String
+  script        String   @db.Text
+  video_image   String   @default("image") // image, video
+  path          String
+  generated_at  DateTime
+  status        String   @default("pending") // pending, processed, failed
+
+  @@index([articles_id])
+  @@index([status])
+
+  posts         Posts[]
+}
+
+model Posts {
+  id                Int      @id @default(autoincrement())
+  contents_id       Int
+  contents          Contents  @relation(fields: [contents_id], references: [id])
+
+  platform          String   @default("youtube") // youtube, tiktok, instagram
+  scheduled_at      DateTime
+  status            String   @default("scheduled") // scheduled, published, failed
+  platform_post_id  String?
+  error_message     String?
+
+  @@index([contents_id])
+  @@index([platform])
+  @@index([scheduled_at])
+  @@index([status])
+
+  post_metrics      Post_metrics[]
+}
+
+model Post_metrics {
+  id             Int    @id @default(autoincrement())
+  posts_id       Int
+  posts          Posts  @relation(fields: [posts_id], references: [id])
+
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  reach          Int?
+  fetched_at     DateTime
 }
