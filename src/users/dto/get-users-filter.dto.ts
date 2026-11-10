@@ -1,5 +1,14 @@
-import { IsOptional, IsString, IsInt, Min, IsIn } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  Max,
+  IsBoolean,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
 import { Type } from 'class-transformer';
+import { toBoolean } from '../../common/transforms';
 
 export class GetUsersFilterDto {
   @IsOptional()
@@ -7,9 +16,9 @@ export class GetUsersFilterDto {
   search?: string;
 
   @IsOptional()
-  @IsString()
-  @IsIn(['active', 'tidak active'])
-  active?: string;
+  @Transform(toBoolean)
+  @IsBoolean()
+  active?: boolean;
 
   @IsOptional()
   @Type(() => Number)
@@ -21,5 +30,6 @@ export class GetUsersFilterDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number = 10;
 }

@@ -20,21 +20,22 @@ model Users {
   email     String   @unique
   password  String
   role      String   @default("viewer") // admin, editor, scheduler, viewer
-  active    String   @default("active")
-  createdAt DateTime @default(now())
+  active    Boolean   @default(true)
+  created_at DateTime @default(now())
 }
 
 model Sources {
-  id            Int      @id @default(autoincrement())
-  domain        String
-  name          String?
-  channel       String   @default("hardcode") // hardcode, 1001colors, ngabring
-  is_active     String  @default("active")
-  created_at    DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  domain     String   @unique              // hostname saja, huruf kecil
+  name       String?
+  channel    String   @default("hardcode") // hardcode, 1001colors, ngabring, kangbadru
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
 
-  @@index([channel])
+  articles   Articles[]
 
-  articles      Articles[]
+  @@index([active, channel])
 }
 
 model Articles {
@@ -43,11 +44,11 @@ model Articles {
   sources       Sources  @relation(fields: [sources_id], references: [id])
 
   url           String   @unique
-  title         String
-  raw_content   String   @db.Text
+  title         String?
+  raw_content   String?   @db.Text
   author        String?
   published_at  DateTime?
-  scraped_at    DateTime
+  scraped_at    DateTime?
   status        String   @default("pending") // pending, processed, failed
 
   @@index([sources_id])

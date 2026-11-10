@@ -1,64 +1,76 @@
 import {
+  CallHandler,
+  ExecutionContext,
   Injectable,
   NestInterceptor,
-  ExecutionContext,
-  CallHandler,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { RESPONSE_MESSAGE_KEY } from '../decorators/response-message.decorator';
 
-// Mendefinisikan struktur standar untuk response sukses
-export interface Response<T> {
+export interface ApiResponse<T> {
   statusCode: number;
   message: string;
-  data: T;
+  data?: T;
+  meta?: Record<string, unknown>;
 }
 
-type ResponsePayload = Record<string, unknown>;
+interface Paginated {
+  data: unknown[];
+  meta: Record<string, unknown>;
+}
 
-const isResponsePayload = (value: unknown): value is ResponsePayload =>
-  typeof value === 'object' && value !== null;
+// Hanya hasil paginasi (array + meta) yang dipecah. Objek lain dibiarkan utuh,
+// jadi field bernama "message" atau "data" milik record tidak ikut terambil.
+const isPaginated = (value: unknown): value is Paginated => {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return Array.isArray(v.data) && typeof v.meta === 'object' && v.meta !== null;
+};
+
+const DEFAULT_MESSAGES: Record<string, string> = {
+  GET: 'Data retrieved successfully',
+  POST: 'Resource created successfully',
+  PATCH: 'Resource updated successfully',
+  PUT: 'Resource updated successfully',
+  DELETE: 'Resource deleted successfully',
+};
 
 @Injectable()
 export class TransformInterceptor<T> implements NestInterceptor<
   T,
-  Response<T>
+  ApiResponse<T>
 > {
+  constructor(private readonly reflector: Reflector) {}
+
   intercept(
     context: ExecutionContext,
     next: CallHandler,
-  ): Observable<Response<T>> {
-    const ctx = context.switchToHttp();
-    const response = ctx.getResponse<{ statusCode: number }>();
-    const request = ctx.getRequest<{ method: string }>();
+  ): Observable<ApiResponse<T>> {
+    const http = context.switchToHttp();
+    const { statusCode } = http.getResponse<{ statusCode: number }>();
+    const { method } = http.getRequest<{ method: string }>();
 
-    const statusCode = response.statusCode;
+    const message =
+      this.reflector.get<string | undefined>(
+        RESPONSE_MESSAGE_KEY,
+        context.getHandler(),
+      ) ??
+      DEFAULT_MESSAGES[method] ??
+      'Success';
 
-    // Menentukan pesan bahasa Inggris secara dinamis berdasarkan metode HTTP
-    let defaultMessage = 'Success';
-    if (request.method === 'POST')
-      defaultMessage = 'Resource created successfully';
-    if (request.method === 'GET')
-      defaultMessage = 'Data retrieved successfully';
-    if (request.method === 'PATCH' || request.method === 'PUT')
-      defaultMessage = 'Resource updated successfully';
-    if (request.method === 'DELETE')
-      defaultMessage = 'Resource deleted successfully';
-
-    // next.handle() adalah data asli yang di-return dari Controller/Service
     return next.handle().pipe(
-      map((data: unknown): Response<T> => {
-        const payload = isResponsePayload(data) ? data : undefined;
-        const message =
-          typeof payload?.message === 'string'
-            ? payload.message
-            : defaultMessage;
-
-        return {
-          statusCode,
-          message, // Gunakan pesan dari Service jika ada, atau gunakan default
-          data: payload?.data ? (payload.data as T) : (data as T), // Hindari nested 'data.data' jika response sudah memiliki properti data
-        };
+      map((result: unknown): ApiResponse<T> => {
+        if (isPaginated(result)) {
+          return {
+            statusCode,
+            message,
+            data: result.data as T,
+            meta: result.meta,
+          };
+        }
+        return { statusCode, message, data: result as T };
       }),
     );
   }

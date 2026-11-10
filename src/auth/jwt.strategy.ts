@@ -1,34 +1,33 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-
-interface JwtPayload {
-  userId: number;
-  email: string;
-  role: string;
-}
+import { PrismaService } from '../prisma/prisma.service';
+import { AuthUser, JwtPayload, Role } from './auth.types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    const secretKey = process.env.AUTH_SECRET;
-
-    if (!secretKey) {
-      throw new Error('AUTH_SECRET belum didefinisikan di file .env');
-    }
-
+  constructor(
+    config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: secretKey,
+      secretOrKey: config.getOrThrow<string>('AUTH_SECRET'),
+      algorithms: ['HS256'],
     });
   }
 
-  validate(payload: JwtPayload): {
-    userId: number;
-    email: string;
-    role: string;
-  } {
-    return { userId: payload.userId, email: payload.email, role: payload.role };
+  async validate(payload: JwtPayload): Promise<AuthUser> {
+    const user = await this.prisma.users.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, role: true, active: true },
+    });
+
+    // User dihapus atau dinonaktifkan: token langsung tidak berlaku.
+    if (!user || !user.active) throw new UnauthorizedException();
+
+    return { userId: user.id, email: user.email, role: user.role as Role };
   }
 }

@@ -1,21 +1,26 @@
 import { Module } from '@nestjs/common';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
+import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { PrismaService } from '../prisma/prisma.service';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 
+// PrismaService tidak didaftarkan di sini: sudah disediakan PrismaModule (global).
 @Module({
   imports: [
-    PassportModule,
-
-    JwtModule.register({
-      secret: process.env.AUTH_SECRET,
-      signOptions: { expiresIn: '1h' },
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        // getOrThrow: aplikasi gagal start kalau AUTH_SECRET belum diset.
+        secret: config.getOrThrow<string>('AUTH_SECRET'),
+        signOptions: { expiresIn: '1h', algorithm: 'HS256' },
+        verifyOptions: { algorithms: ['HS256'] },
+      }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService, JwtStrategy],
+  providers: [AuthService, JwtStrategy],
 })
 export class AuthModule {}
