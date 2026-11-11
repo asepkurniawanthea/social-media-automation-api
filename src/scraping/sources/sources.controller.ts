@@ -36,6 +36,12 @@ export class SourcesController {
   }
 
   @Roles(Role.Admin, Role.Editor)
+  @Get('options')
+  findOptions() {
+    return this.sourcesService.findOptions();
+  }
+
+  @Roles(Role.Admin, Role.Editor)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.sourcesService.findOne(id);

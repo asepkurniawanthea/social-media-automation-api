@@ -1,7 +1,7 @@
 import {
   IsBoolean,
   IsFQDN,
-  IsIn,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
@@ -12,8 +12,13 @@ import {
   toBoolean,
   trimToUndefined,
 } from '../../../common/transforms';
-import { SOURCE_CHANNELS } from '../sources.constants';
-import type { SourceChannel } from '../sources.constants';
+
+export enum SourceChannel {
+  hardcode = 'hardcode',
+  colors1001 = '1001colors',
+  ngabring = 'ngabring',
+  kangbadru = 'kangbadru',
+}
 
 export class CreateSourcesDto {
   // Hostname saja. IsFQDN menolak IP, "localhost", dan host dengan port.
@@ -28,7 +33,7 @@ export class CreateSourcesDto {
   @MaxLength(100)
   name?: string;
 
-  @IsIn(SOURCE_CHANNELS)
+  @IsEnum(SourceChannel)
   channel!: SourceChannel;
 
   // Tidak dikirim = default database (true)

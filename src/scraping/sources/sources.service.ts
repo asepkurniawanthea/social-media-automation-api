@@ -15,6 +15,7 @@ const SOURCE_SELECT = {
   channel: true,
   active: true,
   created_at: true,
+  updated_at: true,
 } satisfies Prisma.SourcesSelect;
 
 @Injectable()
@@ -113,5 +114,13 @@ export class SourcesService {
       });
     }
     return { message: `Source ${id} deleted successfully` };
+  }
+
+  findOptions() {
+    return this.prisma.sources.findMany({
+      where: { active: true },
+      select: { id: true, domain: true },
+      orderBy: { name: 'asc' },
+    });
   }
 }

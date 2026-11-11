@@ -50,6 +50,8 @@ model Articles {
   published_at  DateTime?
   scraped_at    DateTime?
   status        String   @default("pending") // pending, processed, failed
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
 
   @@index([sources_id])
   @@index([status])

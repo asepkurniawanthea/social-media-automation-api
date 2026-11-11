@@ -1,6 +1,6 @@
 import {
   IsBoolean,
-  IsIn,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -14,8 +14,7 @@ import {
   toBoolean,
   trimToUndefined,
 } from '../../../common/transforms';
-import { SOURCE_CHANNELS } from '../sources.constants';
-import type { SourceChannel } from '../sources.constants';
+import { SourceChannel } from './create-sources.dto';
 
 export class GetSourcesFilterDto {
   @IsOptional()
@@ -26,7 +25,7 @@ export class GetSourcesFilterDto {
 
   @IsOptional()
   @Transform(emptyToUndefined)
-  @IsIn(SOURCE_CHANNELS)
+  @IsEnum(SourceChannel)
   channel?: SourceChannel;
 
   @IsOptional()

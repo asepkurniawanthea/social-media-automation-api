@@ -8,18 +8,24 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ScraperModule } from './scraping/scraper/scraper.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SourcesModule } from './scraping/sources/sources.module';
+import { ArticlesModule } from './scraping/articles/articles.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    ScheduleModule.forRoot(),
     PrismaModule,
+    ScraperModule,
     AuthModule,
     UsersModule,
     SourcesModule,
+    ArticlesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
