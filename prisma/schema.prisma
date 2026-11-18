@@ -65,10 +65,11 @@ model Contents {
   articles      Articles  @relation(fields: [articles_id], references: [id])
 
   ai_model      String
-  caption       String   @unique
+  caption       String   @db.Text
   hashtag       String
   script        String   @db.Text
-  video_image   String   @default("image") // image, video
+  video         String   
+  image         String
   path          String
   generated_at  DateTime
   status        String   @default("pending") // pending, processed, failed

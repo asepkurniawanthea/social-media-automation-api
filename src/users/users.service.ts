@@ -43,15 +43,16 @@ export class UsersService {
   }
 
   async findAll(filterDto: GetUsersFilterDto) {
-    const { search, active, page = 1, limit = 10 } = filterDto;
+    const { search, role, active, page = 1, limit = 10 } = filterDto;
 
     const where: Prisma.UsersWhereInput = {};
 
     if (search) {
-      where.OR = [
-        { email: { contains: search, mode: 'insensitive' } },
-        { role: { contains: search, mode: 'insensitive' } },
-      ];
+      where.email = { contains: search, mode: 'insensitive' };
+    }
+
+    if (role) {
+      where.role = { contains: role, mode: 'insensitive' };
     }
 
     if (active !== undefined) {

@@ -16,6 +16,10 @@ export class GetUsersFilterDto {
   search?: string;
 
   @IsOptional()
+  @IsString()
+  role?: string;
+
+  @IsOptional()
   @Transform(toBoolean)
   @IsBoolean()
   active?: boolean;

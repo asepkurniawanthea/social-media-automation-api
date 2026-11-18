@@ -35,7 +35,12 @@ const NOISE_SELECTORS =
   'script, style, noscript, iframe, form, nav, header, footer, aside, figure, figcaption, ' +
   '.ads, .advertisement, .related, .share, .comment, .comments';
 
-const ARTICLE_LD_TYPES = ['NewsArticle', 'Article', 'BlogPosting', 'ReportageNewsArticle'];
+const ARTICLE_LD_TYPES = [
+  'NewsArticle',
+  'Article',
+  'BlogPosting',
+  'ReportageNewsArticle',
+];
 
 const clean = (s?: string | null): string | null =>
   s?.replace(/\s+/g, ' ').trim() || null;
@@ -46,6 +51,14 @@ const toDate = (v?: string | null): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
+type JsonObject = Record<string, unknown>;
+
+const isObject = (v: unknown): v is JsonObject =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+const asString = (v: unknown): string | null =>
+  typeof v === 'string' ? v : null;
+
 @Injectable()
 export class ArticleParserService {
   async scrape(url: string): Promise<ParsedArticle> {
@@ -55,17 +68,24 @@ export class ArticleParserService {
     // Metadata dibaca DULU, sebelum elemen "noise" dibuang dari DOM.
     const ld = this.readJsonLd($);
 
-    const title = (
-      clean(ld?.headline) ??
-      this.meta($, 'og:title') ??
-      clean($('h1').first().text()) ??
-      clean($('title').first().text())
-    )?.slice(0, 500) ?? null;
+    const title =
+      (
+        clean(asString(ld?.headline)) ??
+        this.meta($, 'og:title') ??
+        clean($('h1').first().text()) ??
+        clean($('title').first().text())
+      )?.slice(0, 500) ?? null;
 
     const published_at =
-      toDate(ld?.datePublished) ??
+      toDate(asString(ld?.datePublished)) ??
       toDate(
-        this.meta($, 'article:published_time', 'datePublished', 'pubdate', 'publishdate'),
+        this.meta(
+          $,
+          'article:published_time',
+          'datePublished',
+          'pubdate',
+          'publishdate',
+        ),
       ) ??
       toDate($('time[datetime]').first().attr('datetime'));
 
@@ -89,11 +109,13 @@ export class ArticleParserService {
     return null;
   }
 
-  private readJsonLd($: $): Record<string, any> | null {
-    const nodes: Record<string, any>[] = [];
-    const collect = (v: any) => {
-      if (Array.isArray(v)) v.forEach(collect);
-      else if (v && typeof v === 'object') {
+  private readJsonLd($: $): JsonObject | null {
+    const nodes: JsonObject[] = [];
+
+    const collect = (v: unknown): void => {
+      if (Array.isArray(v)) {
+        (v as unknown[]).forEach(collect);
+      } else if (isObject(v)) {
         nodes.push(v);
         if (v['@graph']) collect(v['@graph']);
       }
@@ -101,29 +123,40 @@ export class ArticleParserService {
 
     $('script[type="application/ld+json"]').each((_, el) => {
       try {
-        collect(JSON.parse($(el).html() ?? ''));
+        const data: unknown = JSON.parse($(el).html() ?? '');
+        collect(data);
       } catch {
         /* JSON-LD rusak: abaikan */
       }
     });
 
     return (
-      nodes.find((n) =>
-        ([] as string[]).concat(n['@type'] ?? []).some((t) => ARTICLE_LD_TYPES.includes(t)),
-      ) ?? null
+      nodes.find((n) => {
+        const t = n['@type'];
+        const types: unknown[] = Array.isArray(t) ? (t as unknown[]) : [t];
+        return types.some(
+          (x) => typeof x === 'string' && ARTICLE_LD_TYPES.includes(x),
+        );
+      }) ?? null
     );
   }
 
-  private authorFromLd(author: any): string | null {
+  private authorFromLd(author: unknown): string | null {
     if (!author) return null;
     if (typeof author === 'string') return clean(author);
     if (Array.isArray(author)) {
-      return author.map((a) => this.authorFromLd(a)).filter(Boolean).join(', ') || null;
+      return (
+        (author as unknown[])
+          .map((a) => this.authorFromLd(a))
+          .filter(Boolean)
+          .join(', ') || null
+      );
     }
-    return typeof author.name === 'string' ? clean(author.name) : null;
+    if (isObject(author)) return clean(asString(author.name));
+    return null;
   }
 
-  private extractAuthor($: $, ld: Record<string, any> | null): string | null {
+  private extractAuthor($: $, ld: JsonObject | null): string | null {
     const candidates = [
       this.authorFromLd(ld?.author),
       this.meta($, 'author'),
@@ -136,7 +169,7 @@ export class ArticleParserService {
     return found ? found.slice(0, 255) : null;
   }
 
-  private extractContent($: $, ld: Record<string, any> | null): string {
+  private extractContent($: $, ld: JsonObject | null): string {
     $(NOISE_SELECTORS).remove();
 
     for (const selector of CONTENT_SELECTORS) {
@@ -154,7 +187,8 @@ export class ArticleParserService {
     }
 
     // Cadangan: articleBody dari JSON-LD.
-    const body = clean(ld?.articleBody);
+    const body = clean(asString(ld?.articleBody));
+
     if (body && body.length >= MIN_CONTENT_LENGTH) return body;
 
     throw new Error('Article content not found or too short');
@@ -182,7 +216,8 @@ export class ArticleParserService {
       if (res.status >= 300 && res.status < 400) {
         await res.body?.cancel();
         const location = res.headers.get('location');
-        if (!location) throw new Error(`Redirect ${res.status} without Location header`);
+        if (!location)
+          throw new Error(`Redirect ${res.status} without Location header`);
         current = new URL(location, current).toString();
         continue;
       }
@@ -216,9 +251,14 @@ export class ArticleParserService {
     }
 
     const host = url.hostname.replace(/^\[|\]$/g, '');
-    const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true });
+    const addresses = isIP(host)
+      ? [{ address: host }]
+      : await lookup(host, { all: true });
 
-    if (addresses.length === 0 || addresses.some((a) => this.isPrivateIp(a.address))) {
+    if (
+      addresses.length === 0 ||
+      addresses.some((a) => this.isPrivateIp(a.address))
+    ) {
       throw new Error('URL points to a private or unresolvable address');
     }
   }
